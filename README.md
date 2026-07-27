@@ -28,3 +28,7 @@ Closing context to TBS service...
 - https://learn.microsoft.com/en-us/windows/win32/api/tbs/nf-tbs-tbsip_submit_command
 - https://trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-3-Commands-01.38.pdf
 - https://trustedcomputinggroup.org/wp-content/uploads/TPM-Rev-2.0-Part-2-Structures-01.38.pdf
+
+# TODO
+- Explore different PCR values to find different ways to ensure system integrity
+- Store our own canary values in extended PCRs to create our own integrity check
