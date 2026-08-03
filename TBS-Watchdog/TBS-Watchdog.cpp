@@ -11,6 +11,98 @@ void PrintHex(const unsigned char* data, size_t length) {
     printf("\n");
 }
 
+// Check to see if we've already written this firmware environment variable
+    // If it isn't, write it ourselves
+    // If it already exists, check the previous value with this current one 
+BOOL HandleTPMHash(__in const unsigned char* hash)
+{
+    HANDLE hToken;
+    TOKEN_PRIVILEGES tokenPrivs = { 0 };
+    DWORD bytesRead = 0;
+    BYTE hashBuff[32] = {0};
+
+    // Need to be running with admin rights, but also adjust our tokens privileges to enable firmware privileges 
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+    {
+        printf("ERROR; Failed OpenProcessToken, error 0x%X\n", GetLastError());
+        return FALSE;
+    }
+
+    if (!LookupPrivilegeValue(NULL, SE_SYSTEMTIME_NAME, &tokenPrivs.Privileges[0].Luid))
+    {
+        printf("ERROR; Failed LookupPrivilegeValue, error 0x%X\n", GetLastError());
+        return FALSE;
+    }
+
+    tokenPrivs.PrivilegeCount = 1;
+    tokenPrivs.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    if (!AdjustTokenPrivileges(hToken, FALSE, &tokenPrivs, 0, NULL, 0))
+    {
+        printf("ERROR; Failed AdjustTokenPrivileges, error 0x%X\n", GetLastError());
+        return FALSE;
+    }
+
+    // Attempt to get our firmware env variable
+    bytesRead = GetFirmwareEnvironmentVariableA(FIRM_VAR_NAME, FIRM_GUID, hashBuff, sizeof(hashBuff));
+    if (bytesRead == 0)
+    {
+        // Check to see if this variable simply doesnt exist - if it doesnt create it 
+        if (GetLastError() == ERROR_ENVVAR_NOT_FOUND)
+        {
+            DWORD attributes = EFI_VARIABLE_NON_VOLATILE | EFI_VARIABLE_BOOTSERVICE_ACCESS | EFI_VARIABLE_RUNTIME_ACCESS | EFI_VARIABLE_TIME_BASED_AUTHENTICATION_WRITE_ACCESS;
+
+            if (!SetFirmwareEnvironmentVariableA(FIRM_VAR_NAME, FIRM_GUID, (void*)hash, 32))
+            {
+                printf("ERROR; Failed SetFirmwareEnvironmentVariableA, error 0x%X\n", GetLastError());
+                return FALSE;
+            }
+
+            else
+            {
+                printf("Variable didnt exist previously; created and stored value for next boot\n");
+                return TRUE;
+            }
+
+        }
+
+        // Otherwise this is some other error
+        else
+        {
+            printf("ERROR; Failed GetFirmwareEnvironmentVariable, error 0x%X\n", GetLastError());
+            return FALSE;
+        }
+    }
+
+    // Otherwise the variable does exist so check the hash with what we've got
+    else
+    {
+        printf("Detected previous run value, validating boot sequence hash...\n");
+
+        if (strcmp((const char*)hash, (const char*)hashBuff) == 0)
+        {
+            printf("Hash value remains uncahnged! Exiting...\n");
+            return TRUE;
+        }
+
+        else
+        {
+            printf("WARNING: Boot hash value changed since last boot!\n");
+        }
+    }
+
+
+    // Close our open handles
+    if (!CloseHandle(hToken))
+    {
+        printf("ERROR; Failed CloseHandle, error 0x%X\n", GetLastError());
+        return FALSE;
+    }
+
+
+    return TRUE;
+}
+
 int main()
 {
     TBS_CONTEXT_PARAMS2 params;
@@ -117,6 +209,9 @@ int main()
     printf("Dumping Contents of PCR 7...\n");
 
     PrintHex(pcrDigest, 32);
+
+    // Attempt to store this value for the user to compare for next time 
+
 
     printf("Closing context to TBS service...\n");
 

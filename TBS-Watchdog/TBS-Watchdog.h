@@ -7,6 +7,18 @@
 #include <Windows.h>
 #include <tbs.h>
 
+// In order to ensure we store and track this variable properly for the user, we will leverage the firmware's environment variables and add our own
+LPCSTR FIRM_VAR_NAME = "PCR7_GOLDEN_VALUE";
+
+// Our variable will need its own unique GUID 
+LPCSTR FIRM_GUID = "{115be761-ab6e-49eb-a0ce-86a24469743d}"; // randomly generated
+
+// EFI variables 
+#define EFI_VARIABLE_NON_VOLATILE                           0x00000001
+#define EFI_VARIABLE_BOOTSERVICE_ACCESS                     0x00000002
+#define EFI_VARIABLE_RUNTIME_ACCESS                         0x00000004
+#define EFI_VARIABLE_TIME_BASED_AUTHENTICATION_WRITE_ACCESS 0x00000020
+
 // Need big-endian for some of our command fields 
 #define REVERSE_16(x) ((((x) >> 8) & 0xff) | (((x) & 0xff) << 8))
 #define REVERSE_32(x) ((((x) >> 24) & 0xff) | (((x) << 8) & 0xff0000) | (((x) >> 8) & 0xff00) | (((x) & 0xff) << 24))
